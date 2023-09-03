@@ -1,0 +1,69 @@
+version: "3"
+
+networks:
+  elastic-net:
+    driver: bridge
+    external: true
+      
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.13.0
+    container_name: elasticsearch-dev
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=es-docker-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - http.cors.enabled=true
+      - http.cors.allow-origin="*"
+      - discovery.type=single-node
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+    networks:
+      - elastic-net
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.13.0
+    container_name: kibana-dev
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    networks:
+      - elastic-net
+
+  apm:
+    image: docker.elastic.co/apm/apm-server-oss:7.13.0
+    container_name: apm-dev
+    command: ["apm-server", "-e"]
+    volumes:
+    - ./apm/apm-server.yml:/usr/share/apm-server/apm-server.yml
+    ports:
+      - "8200:8200"
+    restart: on-failure
+    networks:
+      - elastic-net
+
+  simple_node_app:
+    build: ./simple-node-app
+    container_name: simple_node_app
+    ports:
+      - "${PORT}:${PORT}"
+    environment:
+      - PORT=${PORT}
+      - APM_URL=${APM_URL}
+    depends_on:
+      - apm
+    networks:
+      - elastic-net
+
+
+
